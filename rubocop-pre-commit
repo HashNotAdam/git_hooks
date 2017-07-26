@@ -1,10 +1,12 @@
 #! /usr/bin/env ruby
 
-# Run rubocop against the files being committed, fixing what we can.  Fixed offenses won't wind up
-# in the commit, though, so abort if we find any offenses.
+# Run rubocop against the files being committed, fixing what we can.
+# Fixed offenses won't wind up in the commit, though, so abort if we find any
+# offenses.
 #
-# Offenses in unstaged changes will currently abort the commit, but could be avoided by comparing
-# the line number of the offense to those of the staged changes.
+# Offenses in unstaged changes will currently abort the commit, but could be
+# avoided by comparing the line number of the offense to those of the staged
+# changes.
 
 require 'json'
 require 'open3'
@@ -12,25 +14,25 @@ require 'pathname'
 
 class GitStatusLine
   STATUSES = {
-    "A" => :added,
-    "B" => :pairing_broken,
-    "C" => :copied,
-    "D" => :deleted,
-    "M" => :modified,
-    "R" => :renamed,
-    "T" => :type_changed,
-    "U" => :unmerged,
-    "X" => :unknown
-  }
+    'A' => :added,
+    'B' => :pairing_broken,
+    'C' => :copied,
+    'D' => :deleted,
+    'M' => :modified,
+    'R' => :renamed,
+    'T' => :type_changed,
+    'U' => :unmerged,
+    'X' => :unknown
+  }.freeze
 
   STATUS_LINE_REGEX = /^[#{STATUSES.keys.join("|")}]\s+/
 
-  def self.is_status_line?(line)
+  def self.status_line?(line)
     line =~ STATUS_LINE_REGEX
   end
 
   def self.from(line)
-    return nil unless is_status_line?(line)
+    return nil unless status_line?(line)
     new(line.chomp)
   end
 
@@ -63,57 +65,58 @@ class GitStatusPathname
   end
 
   def ruby?
-    @path.extname == ".rb"
+    @path.extname == '.rb'
   end
 end
 
 class GitDiff
   def self.status_lines
     output = `git diff --cached --name-status`
-    output.lines.map{|l| GitStatusLine.from(l) }.compact
+    output.lines.map { |l| GitStatusLine.from(l) }.compact
   end
 end
 
 def changed_files
   GitDiff.status_lines
-    .select{|f| f.added? || f.modified? }
-    .map(&:pathname)
-    .select(&:ruby?)
+         .select { |f| f.added? || f.modified? }
+         .map(&:pathname)
+         .select(&:ruby?)
 end
 
-file_list = changed_files.join(" ")
-if file_list == ""
-  puts "No files to check."
+file_list = changed_files.join(' ')
+if file_list == ''
+  puts 'No files to check.'
   exit(0)
 end
 
 puts "Running rubocop against #{file_list}"
-output, err, status = Open3.capture3("bundle exec rubocop --format json --force-exclusion --display-cop-names #{file_list}")
+options = '--format json --force-exclusion --display-cop-names'
+output, err = Open3.capture3("bundle exec rubocop #{options} #{file_list}")
 
 unless err.empty?
-  puts "Error executing Rubocop."
+  puts 'Error executing Rubocop.'
   puts err
   exit(1)
 end
 
 json = JSON.parse(output)
 
-offenses = json["summary"]["offense_count"]
-exit(0) if offenses == 0
+offenses = json['summary']['offense_count']
+exit(0) if offenses.zero?
 
-puts "Rubocop found #{offenses} offense#{"s" if offenses > 1}.  Aborting commit."
+puts "Rubocop found #{offenses} offense#{'s' if offenses > 1}. Aborting commit."
 clean = true
-json["files"].each do |file|
-  path = file["path"]
-  uncorrected = file["offenses"].reject{|offense| offense["corrected"] }
+json['files'].each do |file|
+  path = file['path']
+  uncorrected = file['offenses'].reject { |offense| offense['corrected'] }
   clean &&= uncorrected.empty?
 
   uncorrected.each do |offense|
-    line = offense["location"]["line"]
-    message = offense["message"]
+    line = offense['location']['line']
+    message = offense['message']
     puts "#{path}:#{line} #{message}"
   end
 end
-puts "All offenses corrected." if clean
+puts 'All offenses corrected.' if clean
 
 exit(1)
