@@ -32,7 +32,7 @@ class GitStatusLine
   end
 
   def self.from(line)
-    return nil unless status_line?(line)
+    return unless status_line?(line)
     new(line.chomp)
   end
 
@@ -105,18 +105,14 @@ offenses = json['summary']['offense_count']
 exit(0) if offenses.zero?
 
 puts "Rubocop found #{offenses} offense#{'s' if offenses > 1}. Aborting commit."
-clean = true
+
 json['files'].each do |file|
   path = file['path']
-  uncorrected = file['offenses'].reject { |offense| offense['corrected'] }
-  clean &&= uncorrected.empty?
 
-  uncorrected.each do |offense|
+  file['offenses'].each do |offense|
     line = offense['location']['line']
-    message = offense['message']
-    puts "#{path}:#{line} #{message}"
+    puts "#{path}:#{line} #{offense['message']}"
   end
 end
-puts 'All offenses corrected.' if clean
 
 exit(1)
